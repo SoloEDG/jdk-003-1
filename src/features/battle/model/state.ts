@@ -15,6 +15,11 @@ import {
   damage,
   type EffectEvent,
 } from "../lib/effects";
+import {
+  triggerRelics,
+  emptyFired,
+  type FiredMap,
+} from "../lib/relicEngine";
 interface BattleState {
   id: string;
   context: JourneyContext | null;
@@ -27,6 +32,9 @@ interface BattleState {
   queue: EffectEvent[];
   log: string[];
   result: BattleResult | null;
+  // 本场携带的遗物（远征收藏的快照）与各事件的已触发记录。
+  relics: string[];
+  relicFired: FiredMap;
 }
 const emptyHero = (): Actor => ({
   hp: 72,
@@ -48,6 +56,8 @@ const state = reactive<BattleState>({
   queue: [],
   log: [],
   result: null,
+  relics: [],
+  relicFired: emptyFired(),
 });
 export const battleState = readonly(state);
 export function beginBattle(
@@ -55,6 +65,7 @@ export function beginBattle(
   deck: CardInstance[],
   hp: number,
   maxHp: number,
+  relicsOwned: string[] = [],
 ) {
   state.id = uid("battle");
   state.context = context;
@@ -66,6 +77,8 @@ export function beginBattle(
   state.phase = "playing";
   state.queue = [];
   state.result = null;
+  state.relics = [...relicsOwned];
+  state.relicFired = emptyFired();
   state.log = ["战斗开始。状态和牌堆仅属于本场遭遇。"];
   drawCards(state.piles, 5, 1);
 }
@@ -81,19 +94,34 @@ function finish() {
       gold: state.enemy.reward,
       context: JSON.parse(JSON.stringify(state.context)),
     };
+    // 胜负已定：清空待处理事件，已完成的事件不会再触发遗物。
     state.queue = [];
   }
+}
+// 失去生命事件：每个事件每件遗物至多触发一次；遗物造成的连锁伤害不递归。
+function fireHurtRelics() {
+  if (state.phase !== "playing") return;
+  const events = triggerRelics("onHurt", state.relics, state.relicFired);
+  if (events.length) state.queue.unshift(...events);
 }
 function drain() {
   while (state.queue.length && state.phase === "playing") {
     const event = state.queue.shift()!;
     if (event.effect.type === "draw") {
       drawCards(state.piles, event.effect.amount, state.turn);
-      state.log.unshift(`抽取 ${event.effect.amount} 张牌`);
+      state.log.unshift(`${event.label}：抽取 ${event.effect.amount} 张牌`);
     } else if (event.effect.type === "energy") {
       state.energy += event.effect.amount;
-    } else if (state.enemy)
-      state.log.unshift(resolveEffect(event, state.hero, state.enemy));
+      state.log.unshift(`${event.label}：能量 +${event.effect.amount}`);
+    } else if (state.enemy) {
+      state.log.unshift(
+        resolveEffect(event, state.hero, state.enemy, (target) => {
+          // 只处理旅人的失去生命；敌人受伤不触发旅人的遗物。
+          // 每个伤害事件回调一次，triggerRelics 保证每件遗物在该事件中至多一次。
+          if (target === state.hero && !event.fromRelic) fireHurtRelics();
+        }),
+      );
+    }
     finish();
   }
   state.log = state.log.slice(0, 18);
@@ -120,6 +148,13 @@ export function playCard(id: string) {
     })),
   );
   drain();
+  // 出牌事件：每张牌结算一次，每件遗物至多触发一次。
+  if (state.phase === "playing") {
+    state.queue.unshift(
+      ...triggerRelics("onPlay", state.relics, state.relicFired),
+    );
+    drain();
+  }
   return true;
 }
 export function endTurn() {
@@ -128,13 +163,30 @@ export function endTurn() {
   if (poison) state.log.unshift(`敌人中毒失去 ${poison} 生命`);
   finish();
   if (state.phase !== "playing") return;
+  const hpBefore = state.hero.hp;
   const amount = enemyIntent(state.enemy, state.turn);
   damage(state.hero, amount);
   state.log.unshift(`敌人攻击 ${amount}`);
-  poisonTick(state.hero);
+  if (hpBefore > state.hero.hp) fireHurtRelics();
+  drain();
+  finish();
+  if (state.phase !== "playing") return;
+  const heroPoison = poisonTick(state.hero);
+  if (heroPoison) {
+    state.log.unshift(`中毒失去 ${heroPoison} 生命`);
+    fireHurtRelics();
+    drain();
+  }
   finish();
   if (state.phase !== "playing") return;
   discardHand(state.piles);
+  // 回合结束事件：每回合每件遗物至多触发一次，先结算遗物再进入新回合。
+  state.queue.unshift(
+    ...triggerRelics("onTurnEnd", state.relics, state.relicFired),
+  );
+  drain();
+  finish();
+  if (state.phase !== "playing") return;
   state.turn++;
   state.energy = 3;
   state.hero.block = 0;
@@ -149,6 +201,8 @@ export function exportBattle() {
 }
 export function restoreBattle(d: BattleState) {
   Object.assign(state, d);
+  if (!state.relicFired) state.relicFired = emptyFired();
+  if (!Array.isArray(state.relics)) state.relics = [];
 }
 export function resetBattle() {
   state.phase = "idle";
@@ -157,4 +211,6 @@ export function resetBattle() {
   state.result = null;
   state.piles = makePiles([], "");
   state.log = [];
+  state.relics = [];
+  state.relicFired = emptyFired();
 }

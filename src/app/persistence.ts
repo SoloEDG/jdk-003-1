@@ -3,6 +3,7 @@ import { exportBattle, restoreBattle } from "@/features/battle";
 import { exportDeck, restoreDeck } from "@/features/deck";
 import { exportReward, restoreReward } from "@/features/reward";
 import { exportShop, restoreShop } from "@/features/shop";
+import { exportRelics, restoreRelics } from "@/features/relics";
 import { exportSession, restoreSession } from "./session";
 const KEY = "ember-path-v1";
 function snapshot() {
@@ -13,6 +14,7 @@ function snapshot() {
     deck: exportDeck(),
     reward: exportReward(),
     shop: exportShop(),
+    relics: exportRelics(),
     session: exportSession(),
   };
 }
@@ -36,6 +38,7 @@ export function load() {
       !d.battle?.piles ||
       !Array.isArray(d.reward?.history) ||
       !Array.isArray(d.shop?.stock) ||
+      !Array.isArray(d.relics?.owned) ||
       !d.session
     )
       return false;
@@ -46,6 +49,7 @@ export function load() {
       restoreDeck(d.deck);
       restoreReward(d.reward);
       restoreShop(d.shop);
+      restoreRelics(d.relics);
       restoreSession(d.session);
     } catch {
       restoreRoute(old.route);
@@ -53,6 +57,7 @@ export function load() {
       restoreDeck(old.deck);
       restoreReward(old.reward);
       restoreShop(old.shop);
+      restoreRelics(old.relics);
       restoreSession(old.session);
       return false;
     }

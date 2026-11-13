@@ -5,6 +5,7 @@ import { BattlePanel, battleState } from "@/features/battle";
 import { RewardPanel } from "@/features/reward";
 import { ShopPanel } from "@/features/shop";
 import { DeckPanel, deckState } from "@/features/deck";
+import { AltarPanel, relicState } from "@/features/relics";
 import { regionNames } from "@/shared/domain";
 import { session, switchTab } from "./session";
 import { load } from "./persistence";
@@ -15,7 +16,8 @@ const tabs = [
   ["battle", "战斗", "02"],
   ["reward", "奖励", "03"],
   ["shop", "商店", "04"],
-  ["deck", "牌组", "05"],
+  ["altar", "祭坛", "05"],
+  ["deck", "牌组", "06"],
 ];
 const progress = computed(() => (routeState.visited.length / 9) * 100);
 </script>
@@ -76,6 +78,9 @@ const progress = computed(() => (routeState.visited.length / 9) * 100);
           <div>
             <small>牌组</small><b>{{ deckState.cards.length }}</b>
           </div>
+          <div>
+            <small>遗物</small><b>{{ relicState.owned.length }}</b>
+          </div>
         </div>
       </header>
       <div class="message" role="status">
@@ -102,6 +107,9 @@ const progress = computed(() => (routeState.visited.length / 9) * 100);
             :gold="deckState.hero.gold"
             @buy="commands.buy"
             @leave="commands.leaveShop"
+          /><AltarPanel
+            v-else-if="session.tab === 'altar'"
+            @leave="commands.leaveAltar"
           /><DeckPanel
             v-else
             :camp="session.context?.kind === 'camp' && !routeState.resolved"
@@ -109,6 +117,7 @@ const progress = computed(() => (routeState.visited.length / 9) * 100);
             @upgrade="commands.upgrade"
             @remove="commands.remove"
             @camp="commands.camp"
+            @sell-relic="commands.sell"
           />
         </div>
         <aside class="right-rail">

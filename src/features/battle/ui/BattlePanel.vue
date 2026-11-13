@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { battleState, currentIntent } from "../model/state";
 import { cards } from "@/shared/cards";
+import { relics, triggerLabels } from "@/shared/relics";
 import ActorCard from "./ActorCard.vue";
 defineEmits<{ play: [id: string]; end: []; settle: [] }>();
 </script>
@@ -28,6 +29,18 @@ defineEmits<{ play: [id: string]; end: []; settle: [] }>();
       <p>在路线图中选择一个哨站<br /><small>每次出牌都可能改变战局</small></p>
     </div>
     <div v-if="battleState.phase === 'playing'">
+      <div v-if="battleState.relics.length" class="battle-relics">
+        <span
+          v-for="key in battleState.relics"
+          :key="key"
+          class="battle-relic"
+          :data-relic="key"
+          :title="`${relics[key]?.name} · ${triggerLabels[relics[key]!.trigger]}：${relics[key]?.condition}`"
+        >
+          <i class="relic-sigil">{{ relics[key]?.sigil }}</i>
+          <small>{{ relics[key]?.name }}</small>
+        </span>
+      </div>
       <div class="energy-line">
         <b>◉ {{ battleState.energy }} / 3 能量</b
         ><span

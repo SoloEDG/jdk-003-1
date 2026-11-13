@@ -23,6 +23,7 @@ export function claimReward(skip = false) {
   state.history.push(offer.source);
   return {
     card: skip ? null : state.selected,
+    relic: offer.relic,
     gold: offer.gold,
     heal: offer.heal,
   };

@@ -2,6 +2,8 @@ import type { RouteNode, Region, NodeKind } from "@/shared/domain";
 export function makeMap(): RouteNode[] {
   const result: RouteNode[] = [];
   const regions: Region[] = ["forest", "forge", "abyss"];
+  // 险路上的祭坛：两件遗物二选一，是远征打法的分水岭。
+  const altarDepths = new Set([2, 6]);
   for (let depth = 0; depth < 9; depth++) {
     const region = regions[Math.floor(depth / 3)]!;
     for (let lane = 0; lane < 2; lane++) {
@@ -12,9 +14,11 @@ export function makeMap(): RouteNode[] {
             ? lane === 0
               ? "shop"
               : "camp"
-            : lane === 0
-              ? "battle"
-              : "elite";
+            : lane === 1 && altarDepths.has(depth)
+              ? "altar"
+              : lane === 0
+                ? "battle"
+                : "elite";
       result.push({
         id: `n${depth}-${lane}`,
         region,
@@ -28,9 +32,11 @@ export function makeMap(): RouteNode[] {
               ? "危险的捷径"
               : kind === "shop"
                 ? "游商营地"
-                : kind === "camp"
-                  ? "熄风篝火"
-                  : "失落哨站",
+                : kind === "altar"
+                  ? "无名祭坛"
+                  : kind === "camp"
+                    ? "熄风篝火"
+                    : "失落哨站",
         influence:
           lane === 0
             ? { heat: 0, favor: 1, scarcity: 0 }

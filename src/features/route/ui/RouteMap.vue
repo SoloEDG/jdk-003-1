@@ -9,7 +9,14 @@ const layers = computed(() =>
     routeState.nodes.filter((n) => n.depth === d),
   ),
 );
-const symbols = { battle: "⚔", elite: "♜", shop: "⚖", camp: "♨", boss: "◈" };
+const symbols = {
+  battle: "⚔",
+  elite: "♜",
+  shop: "⚖",
+  camp: "♨",
+  altar: "✠",
+  boss: "◈",
+};
 </script>
 <template>
   <section class="panel route-panel">
@@ -43,7 +50,13 @@ const symbols = { battle: "⚔", elite: "♜", shop: "⚖", camp: "♨", boss: "
             >{{ node.title
             }}<small
               >{{ regionNames[node.region] }} ·
-              {{ node.lane ? "威胁 +1 / 稀缺 +1" : "好感 +1" }}</small
+              {{
+                node.kind === "altar"
+                  ? "两件遗物二选一"
+                  : node.lane
+                    ? "威胁 +1 / 稀缺 +1"
+                    : "好感 +1"
+              }}</small
             ></span
           ><i>{{ routeState.visited.includes(node.id) ? "✓" : "↗" }}</i>
         </button>

@@ -29,6 +29,17 @@ import {
   resetShop,
 } from "@/features/shop";
 import {
+  acquireRelic,
+  sellRelic,
+  openAltar,
+  chooseAltar,
+  skipAltar,
+  closeAltar,
+  resetRelics,
+  ownedRelics,
+} from "@/features/relics";
+import { relicLabel, duplicateRelicGold } from "@/shared/relics";
+import {
   session,
   switchTab,
   setContext,
@@ -51,8 +62,18 @@ export function navigate(id: string) {
   } else if (c.kind === "camp") {
     openCamp();
     switchTab("deck");
+  } else if (c.kind === "altar") {
+    openAltar(c);
+    switchTab("altar");
   } else {
-    beginBattle(c, deckCards(), deckState.hero.hp, deckState.hero.maxHp);
+    // 战斗只携带本场开始时的遗物快照，远征中的变化不影响进行中的战斗。
+    beginBattle(
+      c,
+      deckCards(),
+      deckState.hero.hp,
+      deckState.hero.maxHp,
+      ownedRelics(),
+    );
     switchTab("battle");
   }
   notify(
@@ -81,9 +102,19 @@ export function settle() {
   if (openReward(JSON.parse(JSON.stringify(r)))) {
     setHp(r.hp);
     switchTab("reward");
-    notify("胜利！选择一张牌或跳过卡牌，金币都会结算。");
+    notify("胜利！选择一张牌或跳过卡牌，金币与遗物都会结算。");
   }
   persist();
+}
+// 统一的遗物入藏：重复（含曾出售）折算金币，绝不重复结算首次取得。
+function collectRelic(key: string) {
+  const result = acquireRelic(key);
+  if (!result) return "";
+  if (result.status === "duplicate") {
+    earnGold(result.gold);
+    return `遗物「${relicLabel(result.key)}」已持有或曾出售，折算 ${result.gold} 金币。`;
+  }
+  return `获得遗物「${relicLabel(result.key)}」。`;
 }
 export function claim(skip: boolean) {
   const grant = claimReward(skip);
@@ -91,11 +122,12 @@ export function claim(skip: boolean) {
   if (grant.card) addCard(grant.card);
   earnGold(grant.gold);
   heal(grant.heal);
+  const relicMessage = grant.relic ? collectRelic(grant.relic) : "";
   resolveRoute();
   if (session.context?.kind === "boss") {
     finishRun();
     notify("裂隙已被封存。你把余烬带回了黎明。");
-  } else notify("奖励已结算，新的路线开放。");
+  } else notify(relicMessage || "奖励已结算，新的路线开放。");
   switchTab("route");
   persist();
 }
@@ -109,14 +141,52 @@ export function buy(id: string) {
     earnGold(p.price);
     return;
   }
-  addCard(p.card);
-  notify("交易完成，卡牌已收入牌组。");
+  if (p.relic) {
+    if (p.duplicate) {
+      // 陈列时已被入藏/售出的遗物：购买只兑现折算，不走首次取得。
+      earnGold(duplicateRelicGold);
+      notify(`该遗物已在收藏或曾出售，折算 ${duplicateRelicGold} 金币。`);
+    } else notify(collectRelic(p.relic) || "交易完成。");
+  } else {
+    addCard(p.card);
+    notify("交易完成，卡牌已收入牌组。");
+  }
   persist();
 }
 export function leaveShop() {
   closeShop();
   resolveRoute();
   switchTab("route");
+  persist();
+}
+export function altarPick(key: string) {
+  const result = chooseAltar(key);
+  if (!result) return;
+  if (result.status === "duplicate") {
+    earnGold(result.gold);
+    notify(
+      `遗物「${relicLabel(result.key)}」已持有或曾出售，折算 ${result.gold} 金币。`,
+    );
+  } else notify(`祭坛赐予遗物「${relicLabel(result.key)}」。`);
+  persist();
+}
+export function altarSkip() {
+  if (!skipAltar()) return;
+  notify("你没有触碰祭坛，两件遗物重新沉入阴影。");
+  persist();
+}
+export function leaveAltar() {
+  closeAltar();
+  resolveRoute();
+  switchTab("route");
+  persist();
+}
+export function sell(key: string) {
+  if (battleState.phase === "playing") return;
+  const gold = sellRelic(key);
+  if (gold == null) return;
+  earnGold(gold);
+  notify(`遗物已出售，获得 ${gold} 金币；它不会再以首次取得结算。`);
   persist();
 }
 export function camp(action: "rest" | "upgrade") {
@@ -150,6 +220,7 @@ export function restart() {
   resetDeck();
   resetReward();
   resetShop();
+  resetRelics();
   resetSession();
   clearSave();
   persist();

@@ -3,6 +3,8 @@ export interface EffectEvent {
   effect: Effect;
   source: "hero" | "enemy";
   label: string;
+  // 标记由遗物产生的连锁事件：它造成的伤害不再递归触发遗物。
+  fromRelic?: boolean;
 }
 export function damage(target: Actor, amount: number) {
   const blocked = Math.min(target.block, amount);
@@ -14,6 +16,7 @@ export function resolveEffect(
   event: EffectEvent,
   hero: Actor,
   enemy: Actor,
+  onHurt?: (target: Actor, lost: number) => void,
 ): string {
   const { effect: e, source, label } = event;
   const target = e.target === "hero" ? hero : enemy;
@@ -21,7 +24,11 @@ export function resolveEffect(
   if (e.type === "damage") {
     const amount = e.amount + origin.strength;
     const lost = damage(target, amount);
-    if (target.thorns > 0 && origin.hp > 0) damage(origin, target.thorns);
+    if (lost > 0) onHurt?.(target, lost);
+    if (target.thorns > 0 && origin.hp > 0 && lost > 0) {
+      const reflected = damage(origin, target.thorns);
+      if (reflected > 0) onHurt?.(origin, reflected);
+    }
     return `${label} → ${lost} 生命伤害${target.thorns ? "，荆棘反伤 " + target.thorns : ""}`;
   }
   if (e.type === "block") target.block += e.amount;

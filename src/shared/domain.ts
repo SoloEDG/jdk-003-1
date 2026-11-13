@@ -1,5 +1,5 @@
 export type Region = "forest" | "forge" | "abyss";
-export type NodeKind = "battle" | "elite" | "shop" | "camp" | "boss";
+export type NodeKind = "battle" | "elite" | "shop" | "camp" | "altar" | "boss";
 export interface Influence {
   heat: number;
   favor: number;
@@ -61,6 +61,7 @@ export interface RewardOffer {
   id: string;
   source: string;
   cards: string[];
+  relic: string;
   gold: number;
   heal: number;
   claimed: boolean;
